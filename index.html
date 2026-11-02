@@ -225,6 +225,12 @@
       <div class="row"><button id="copyLink">연결 링크 복사</button></div>
     </div>
     <div class="box">
+      <h3>🆘 학생용 SOS 링크</h3>
+      <div class="muted">학생들에게는 <b>이 링크</b>를 보내세요. 위의 연결 링크는 보내면 안 돼요. 학생 화면에는 명단과 SOS 버튼만 보이고 출석 체크는 할 수 없어요. 학생이 SOS를 누르면 아래 번호로 보낼 문자(이름·시각·위치)가 채워지고, 학생이 <b>전송</b>을 누르면 와요.</div>
+      <div class="row"><input type="text" id="phoneInput" inputmode="tel" placeholder="문자 받을 내 휴대폰 번호 (예: 010-1234-5678)"></div>
+      <div class="row"><button class="primary" id="sosLink">학생용 SOS 링크 복사</button></div>
+    </div>
+    <div class="box">
       <h3>🗑 이 기기 기록 지우기</h3>
       <div class="muted">새 학급이나 다음 여행에 쓸 때 이 휴대폰에 남은 체크 기록을 지워요. 구글시트의 기록은 지워지지 않아요.</div>
       <div class="row"><button class="danger" id="wipeBtn">이 기기 기록 모두 지우기</button></div>
@@ -233,6 +239,8 @@
 </main>
 
 <script>
+(function () {
+if (location.hash.indexOf("sos=") >= 0) return;   // 학생용 SOS 링크면 선생님 화면은 실행하지 않음
 /* ===== 8반 기본 명단 (처음 만든 반) ===== */
 const DEFAULT_NAMES = ["강우진","권민지","김나윤","김민영","김민지","김예지","김지성","김찬우","김하율","김형서",
   "김휘윤","남소율","박소정","박은준","박지원","박채연","신주영","오승준","윤현규","이다빈",
@@ -675,8 +683,110 @@ function renderAll() {
   renderCheck(); renderChips(); renderExtra(); renderLog(); renderStat(); renderSet(); renderSync();
 }
 
+/* ===== 학생용 SOS 링크 만들기 ===== */
+$("phoneInput").value = data.phone || "";
+$("sosLink").onclick = async () => {
+  const phone = $("phoneInput").value.replace(/\D/g, "");
+  if (!/^0\d{8,10}$/.test(phone)) { toast("휴대폰 번호를 정확히 입력해 주세요"); $("phoneInput").focus(); return; }
+  if (!data.cls || !data.roster.length) { toast("먼저 반·명단을 저장해 주세요"); return; }
+  data.phone = phone; save();
+  const names = people().filter(p => !data.absent[p.name]).map(p => p.name);
+  const cfg = { c: data.cls, p: phone, n: names };
+  const code = btoa(unescape(encodeURIComponent(JSON.stringify(cfg))));
+  const link = location.href.split("#")[0] + "#sos=" + encodeURIComponent(code);
+  if (await copyText(link)) toast("학생용 SOS 링크를 복사했어요. 학생 단톡방에 붙여넣으세요"); else prompt("학생용 SOS 링크", link);
+};
+
 buildGrid(); renderAll();
 loadConfig(false);
+})();
+</script>
+
+<script>
+/* ===== 학생용 SOS 화면 (링크에 #sos= 가 있을 때만) ===== */
+(function () {
+  const m = location.hash.match(/sos=([^&]+)/);
+  if (!m) return;
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  let cfg = null;
+  try { cfg = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(m[1]))))); } catch (e) {}
+  if (!cfg || !cfg.p || !Array.isArray(cfg.n)) {
+    document.body.innerHTML = `<p style="padding:24px">링크가 올바르지 않아요. 선생님께 다시 받아 주세요.</p>`;
+    return;
+  }
+  const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const REASONS = ["길을 잃었어요", "몸이 아파요", "다쳤어요", "늦을 것 같아요", "급한 일이 있어요"];
+  const pad = n => String(n).padStart(2, "0");
+  document.title = `${cfg.c} 선생님 호출`;
+  document.body.innerHTML = `
+    <style>
+      .sosbtn{margin-top:8px;width:100%;font-weight:800;color:#fff;background:#dc2626;border-color:#dc2626;padding:8px}
+      .ov{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;padding:16px;z-index:20}
+      .ov.show{display:flex}
+      .sheet{background:#fff;border-radius:16px;padding:18px;width:100%;max-width:420px}
+      .sheet h2{margin:0 0 6px;font-size:19px}
+      .sheet .rs{display:grid;gap:8px;margin-top:12px}
+      .sheet .rs button{padding:12px;font-size:16px;font-weight:700;text-align:left}
+      .warn{background:#fee2e2;border:1px solid #fca5a5;color:#991b1b}
+    </style>
+    <header><div class="top"><h1>🆘 ${esc(cfg.c)} 선생님 호출</h1></div></header>
+    <main>
+      <div class="box warn">급한 일이 있을 때 <b>내 이름 아래 SOS</b>를 누르세요.<br>문자 앱이 열리면 <b>꼭 「전송」을 눌러야</b> 선생님께 가요. 장난으로 누르면 안 돼요.</div>
+      <div class="grid" id="sgrid"></div>
+      <div class="box" style="margin-top:14px;text-align:center">
+        문자가 안 되면 <a href="tel:${esc(cfg.p)}" style="font-weight:800;color:#dc2626">📞 선생님께 전화하기</a>
+      </div>
+    </main>
+    <div class="ov" id="ov"><div class="sheet" id="sheet"></div></div>`;
+  document.getElementById("sgrid").innerHTML = cfg.n.map((name, i) =>
+    `<div class="st"><div class="name" style="cursor:default">${esc(name)}</div><button class="sosbtn" data-i="${i}">🆘 SOS</button></div>`).join("");
+  const ov = document.getElementById("ov"), sheet = document.getElementById("sheet");
+  const close = () => ov.classList.remove("show");
+  ov.onclick = e => { if (e.target === ov) close(); };
+
+  document.getElementById("sgrid").onclick = e => {
+    const i = e.target.dataset.i; if (i === undefined) return;
+    const name = cfg.n[i];
+    sheet.innerHTML = `<h2>${esc(name)} 학생이 맞나요?</h2>
+      <div class="muted">무슨 일인지 골라 주세요. 선생님께 보낼 문자가 만들어져요.</div>
+      <div class="rs">${REASONS.map(r => `<button data-r="${esc(r)}">${esc(r)}</button>`).join("")}
+        <button data-cancel="1" style="text-align:center;color:#6b7280">취소</button></div>`;
+    sheet.onclick = ev => {
+      if (ev.target.dataset.cancel) { close(); return; }
+      if (ev.target.dataset.r) send(name, ev.target.dataset.r);
+    };
+    ov.classList.add("show");
+  };
+
+  function send(name, reason) {
+    let last = 0; try { last = Number(localStorage.getItem("tripcheck_sos_last")) || 0; } catch (e) {}
+    if (Date.now() - last < 30000) {
+      sheet.innerHTML = `<h2>잠시만요</h2><div class="muted">방금 호출했어요. 30초 뒤에 다시 누를 수 있어요. 급하면 전화하세요.</div>
+        <div class="rs"><a href="tel:${esc(cfg.p)}"><button style="width:100%;text-align:center">📞 전화하기</button></a><button data-cancel="1" style="text-align:center">닫기</button></div>`;
+      return;
+    }
+    sheet.innerHTML = `<h2>📍 위치 확인 중…</h2><div class="muted">위치 사용을 물어보면 <b>허용</b>을 눌러 주세요. 잠시 후 문자 앱이 열려요.</div>`;
+    let done = false;
+    const go = pos => {
+      if (done) return; done = true;
+      try { localStorage.setItem("tripcheck_sos_last", String(Date.now())); } catch (e) {}
+      const d = new Date();
+      let msg = `🆘 [${cfg.c} ${name}] 선생님 호출\n${reason}\n${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      msg += pos ? `\n위치: https://maps.google.com/?q=${pos.coords.latitude.toFixed(5)},${pos.coords.longitude.toFixed(5)}` : "\n(위치 확인 안 됨)";
+      const url = `sms:${cfg.p}${isIOS ? "&" : "?"}body=${encodeURIComponent(msg)}`;
+      sheet.innerHTML = `<h2>✉ 문자 앱에서 「전송」을 눌러 주세요</h2>
+        <div class="muted">문자 앱이 안 열리면 아래 버튼을 누르세요.</div>
+        <div class="rs"><a href="${url}"><button style="width:100%;text-align:center;background:#dc2626;color:#fff;border-color:#dc2626">✉ 문자 앱 열기</button></a>
+        <a href="tel:${esc(cfg.p)}"><button style="width:100%;text-align:center">📞 전화하기</button></a>
+        <button data-cancel="1" style="text-align:center">닫기</button></div>`;
+      location.href = url;
+    };
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(go, () => go(null), { enableHighAccuracy: true, timeout: 7000, maximumAge: 60000 });
+      setTimeout(() => go(null), 8000);
+    } else go(null);
+  }
+})();
 </script>
 </body>
 </html>
