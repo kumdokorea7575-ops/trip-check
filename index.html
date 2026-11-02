@@ -159,9 +159,10 @@
     <div class="box missing" id="missingBox"><h3>아직 확인 안 된 학생</h3><p id="missing"></p></div>
     <div class="box" id="addBox">
       <h3 style="margin:0 0 4px;font-size:15px">➕ 학생 추가</h3>
-      <div class="muted">다른 반 학생도 넣을 수 있어요. 반과 이름을 같이 입력하면 <b>홍길동(2-3)</b>처럼 표시돼요.</div>
+      <div class="muted">다른 반 학생도 넣을 수 있어요. 반 번호와 이름을 입력하면 <b>홍길동(3반)</b>처럼 표시돼요.</div>
       <div class="startrow">
-        <input type="text" id="addCls" placeholder="반 (예: 2-3)" maxlength="10" style="max-width:120px">
+        <input type="text" id="addCls" placeholder="3" maxlength="3" inputmode="numeric" style="max-width:64px;text-align:center">
+        <span style="align-self:center;font-weight:700">반</span>
         <input type="text" id="addName" placeholder="이름" maxlength="20">
         <button class="primary" id="addBtn">추가</button>
       </div>
@@ -352,8 +353,9 @@ function toggleAbsent(name) {
 
 /* 학생 추가·삭제 */
 $("addBtn").onclick = () => {
-  const name = $("addName").value.trim(), cls = $("addCls").value.trim();
-  if (!cls) { toast("반을 입력해 주세요 (예: 2-3)"); $("addCls").focus(); return; }
+  const num = $("addCls").value.replace(/\D/g, "").replace(/^0+/, "");
+  const name = $("addName").value.trim(), cls = num ? num + "반" : "";
+  if (!cls) { toast("반 번호를 숫자로 입력해 주세요 (예: 3)"); $("addCls").focus(); return; }
   if (!name) { toast("이름을 입력해 주세요"); $("addName").focus(); return; }
   const key = extraKey({ name, cls });
   if (people().some(p => p.name === key)) { toast("이미 추가된 학생이에요"); return; }
