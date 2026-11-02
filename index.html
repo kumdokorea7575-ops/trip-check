@@ -1,0 +1,560 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#2563eb">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="인원체크">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-180.png">
+<title>수학여행 인원체크</title>
+<style>
+  :root{
+    --bg:#f4f6fb; --card:#ffffff; --text:#1f2937; --muted:#6b7280; --line:#e5e7eb;
+    --ok:#16a34a; --ok-bg:#dcfce7; --ok-line:#86efac;
+    --no:#dc2626; --no-bg:#fee2e2; --no-line:#fca5a5;
+    --wait:#f59e0b; --late:#ea580c; --accent:#2563eb;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif}
+  header{position:sticky;top:0;z-index:5;background:var(--bg);padding:12px 16px 0;border-bottom:1px solid var(--line)}
+  .top{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  h1{margin:0;font-size:19px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sync{font-size:12px;color:var(--muted);white-space:nowrap}
+  .sync.ok{color:var(--ok)} .sync.wait{color:var(--wait)} .sync.err{color:var(--no)}
+  nav{display:flex;gap:4px}
+  nav button{flex:1;border:none;border-bottom:3px solid transparent;border-radius:0;background:none;padding:9px 4px;color:var(--muted);font-weight:600}
+  nav button.on{color:var(--accent);border-bottom-color:var(--accent)}
+  main{padding:12px 16px 60px;max-width:900px;margin:0 auto}
+  section{display:none} section.on{display:block}
+  button{font:inherit;border:1px solid var(--line);background:var(--card);border-radius:10px;padding:9px 10px;cursor:pointer;color:var(--text)}
+  button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  button.kakao{background:#FEE500;color:#191919;border-color:#FEE500;font-weight:700}
+  button.danger{color:var(--no);border-color:var(--no-line)}
+  input[type=text],input[type=url]{font:inherit;width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fff}
+  .box{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:12px}
+  .muted{color:var(--muted);font-size:13px}
+
+  /* 체크 화면 */
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 4px;text-align:center}
+  .stat b{display:block;font-size:22px}
+  .stat span{font-size:12px;color:var(--muted)}
+  .stat.ok b{color:var(--ok)} .stat.wait b{color:var(--wait)} .stat.no b,.stat.no span{color:var(--no)}
+  .bar{height:8px;background:var(--line);border-radius:99px;margin-top:10px;overflow:hidden}
+  .bar i{display:block;height:100%;width:0;background:var(--ok);transition:width .25s}
+  .done{display:none;margin-top:10px;padding:10px;border-radius:12px;background:var(--ok);color:#fff;text-align:center;font-weight:700}
+  .done.show{display:block}
+  .roundinfo{display:flex;align-items:center;gap:8px;margin:12px 0 8px}
+  .roundinfo .where{flex:1;font-weight:700;font-size:16px}
+  .roundinfo .where small{font-weight:400;color:var(--muted);font-size:13px}
+  .roundinfo button{padding:6px 10px;font-size:13px}
+  .startbox h2{margin:0 0 4px;font-size:17px}
+  .startrow{display:flex;gap:8px;margin-top:10px}
+  .startrow button{white-space:nowrap}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .chips button{padding:5px 10px;font-size:13px;border-radius:99px}
+  .tools{display:flex;gap:8px;margin-top:10px}
+  .tools button{flex:1}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+  .st{position:relative;background:var(--card);border:2px solid var(--line);border-radius:14px;
+    padding:14px 8px 8px;text-align:center;user-select:none;transition:background .15s,border-color .15s}
+  .st .num{position:absolute;top:6px;left:9px;font-size:12px;color:var(--muted)}
+  .st .name{font-size:20px;font-weight:700;margin:6px 0 2px;cursor:pointer;padding:6px 0}
+  .st .state{font-size:12px;color:var(--wait);font-weight:600;min-height:16px}
+  .st .skip{margin-top:8px;width:100%;font-size:13px;padding:6px;font-weight:600;
+    color:var(--no);background:var(--no-bg);border-color:var(--no-line)}
+  .st.ok{background:var(--ok-bg);border-color:var(--ok-line)}
+  .st.ok .state{color:var(--ok)}
+  .st.ok.late .state{color:var(--late)}
+  .st.ok .name::before{content:"✔ ";color:var(--ok)}
+  .st.no{background:var(--no-bg);border-color:var(--no-line)}
+  .st.no .name{color:var(--no);cursor:default}
+  .st.no .name::before{content:"✖ ";color:var(--no)}
+  .st.no .state{color:var(--no)}
+  .st.no .skip{color:#fff;background:var(--no);border-color:var(--no)}
+  .grid.idle .st:not(.no) .name{color:var(--muted)}
+  .missing{margin-top:16px}
+  .missing h3{margin:0 0 6px;font-size:15px;color:var(--wait)}
+  .missing p{margin:0;font-size:15px;line-height:1.6}
+
+  /* 기록 */
+  .rcard h3{margin:0;font-size:16px}
+  .rcard .meta{font-size:13px;color:var(--muted);margin:4px 0 6px}
+  .rcard .line{font-size:14px;line-height:1.6}
+  .tag-miss{color:var(--no);font-weight:700}
+  .tag-late{color:var(--late);font-weight:700}
+  .tag-ok{color:var(--ok);font-weight:700}
+  details{margin-top:6px} summary{cursor:pointer;color:var(--accent);font-size:13px}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{padding:7px 4px;border-bottom:1px solid var(--line);text-align:center}
+  th{font-size:12px;color:var(--muted);font-weight:600}
+  td.l{text-align:left}
+  tr.warn td{background:#fef3c7} tr.bad td{background:#fecaca}
+  .empty{text-align:center;color:var(--muted);padding:30px 0}
+
+  /* 설정 */
+  .set h3{margin:0 0 6px;font-size:15px}
+  .set .row{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+  .set .row button{flex:1;min-width:130px}
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#111827;color:#fff;max-width:90vw;
+    padding:10px 16px;border-radius:99px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:10;text-align:center}
+  .toast.show{opacity:.92}
+  @media (max-width:420px){ .grid{grid-template-columns:repeat(3,1fr);gap:8px} .st .name{font-size:17px} }
+</style>
+</head>
+<body>
+<header>
+  <div class="top">
+    <h1 id="title">🚌 수학여행 인원체크</h1>
+    <span class="sync" id="sync"></span>
+  </div>
+  <nav>
+    <button data-tab="check" class="on">✅ 체크</button>
+    <button data-tab="log">📋 기록</button>
+    <button data-tab="stat">📊 통계</button>
+    <button data-tab="set">⚙ 설정</button>
+  </nav>
+</header>
+
+<main>
+  <!-- 체크 -->
+  <section id="tab-check" class="on">
+    <div class="stats">
+      <div class="stat"><b id="sTotal">0</b><span>참가 인원</span></div>
+      <div class="stat ok"><b id="sOk">0</b><span>확인 완료</span></div>
+      <div class="stat wait"><b id="sWait">0</b><span>미확인</span></div>
+      <div class="stat no"><b id="sNo">0</b><span>미참여</span></div>
+    </div>
+    <div class="bar"><i id="bar"></i></div>
+    <div class="done" id="done">✅ 참가 인원 전원 확인 완료!</div>
+
+    <div class="box startbox" id="startBox">
+      <h2>📍 어디에서 인원체크를 하나요?</h2>
+      <div class="muted" id="startHint">장소를 적고 시작을 누르면 시작 시각부터 확인 시간이 기록돼요.</div>
+      <div class="startrow">
+        <input type="text" id="placeInput" placeholder="예: 학교 출발, 휴게소, 숙소" maxlength="30">
+        <button class="primary" id="startBtn">시작</button>
+      </div>
+      <div class="chips" id="chips"></div>
+    </div>
+
+    <div id="runBox">
+      <div class="roundinfo">
+        <div class="where" id="where"></div>
+        <button id="renameBtn">장소 수정</button>
+      </div>
+      <div class="tools">
+        <button class="kakao" id="shareBtn">💬 카톡으로 보내기</button>
+        <button class="primary" id="newBtn">🔄 새 인원체크</button>
+      </div>
+      <p class="muted">이름을 누르면 확인 (다시 누르면 취소) · 아래 버튼으로 미참여 지정 (새 인원체크를 해도 유지돼요)</p>
+    </div>
+
+    <div class="grid" id="grid"></div>
+    <div class="box missing" id="missingBox"><h3>아직 확인 안 된 학생</h3><p id="missing"></p></div>
+  </section>
+
+  <!-- 기록 -->
+  <section id="tab-log">
+    <div class="tools" style="margin:0 0 12px">
+      <button class="kakao" id="shareAllBtn">💬 전체 기록 카톡으로 보내기</button>
+    </div>
+    <div id="logList"></div>
+  </section>
+
+  <!-- 통계 -->
+  <section id="tab-stat">
+    <div class="box muted" id="statHint"></div>
+    <div class="box" style="padding:4px 8px"><table id="statTable"></table></div>
+    <div class="tools"><button class="kakao" id="shareStatBtn">💬 통계 카톡으로 보내기</button></div>
+  </section>
+
+  <!-- 설정 -->
+  <section id="tab-set" class="set">
+    <div class="box">
+      <h3>☁ 구글시트 연결</h3>
+      <div class="muted">구글시트의 Apps Script 웹 앱 주소(…/exec)를 넣어 주세요. 연결하면 명단·미참여·제목·지각 기준을 시트에서 가져오고, 인원체크 기록이 시트에 자동 저장돼요.</div>
+      <div class="row"><input type="url" id="apiInput" placeholder="https://script.google.com/macros/s/…/exec"></div>
+      <div class="row">
+        <button class="primary" id="apiSave">저장하고 연결</button>
+        <button id="apiReload">명단 다시 불러오기</button>
+      </div>
+      <div class="muted" id="apiStatus" style="margin-top:8px"></div>
+    </div>
+    <div class="box">
+      <h3>📲 다른 휴대폰에서 쓰기</h3>
+      <div class="muted">아래 링크를 열면 시트 연결까지 자동으로 돼요. 링크를 연 다음 브라우저 메뉴에서 <b>홈 화면에 추가</b>를 누르세요.</div>
+      <div class="row"><button id="copyLink">연결 링크 복사</button></div>
+    </div>
+    <div class="box">
+      <h3>👥 지금 명단</h3>
+      <div class="muted" id="rosterInfo"></div>
+    </div>
+    <div class="box">
+      <h3>🗑 이 기기 기록 지우기</h3>
+      <div class="muted">새 학급이나 다음 여행에 쓸 때 이 휴대폰에 남은 체크 기록을 지워요. 구글시트의 기록은 지워지지 않아요.</div>
+      <div class="row"><button class="danger" id="wipeBtn">이 기기 기록 모두 지우기</button></div>
+    </div>
+  </section>
+</main>
+
+<script>
+/* ===== 기본값 (시트 연결 전에 쓰는 명단) ===== */
+const DEFAULT_TITLE = "2-8 수학여행 인원체크";
+const DEFAULT_NAMES = ["강우진","권민지","김나윤","김민영","김민지","김예지","김지성","김찬우","김하율","김형서",
+  "김휘윤","남소율","박소정","박은준","박지원","박채연","신주영","오승준","윤현규","이다빈",
+  "이다은","이서진","이지민","임소윤","임태리","조예성","츠세준","한경석","한로아","홍은서"];
+const PLACE_CHIPS = ["학교 출발","버스 탑승","휴게소","관광지","식당","숙소","점호","귀가"];
+const LS = "tripcheck_v1";
+
+/* ===== 저장 ===== */
+let data = {
+  api: "", title: "", lateMin: 5, rosterFrom: "default",
+  roster: DEFAULT_NAMES.map((name, i) => ({ no: i + 1, name })),
+  absent: {},          // 이름 → true (미참여)
+  rounds: [],          // 인원체크 기록
+  cur: null,           // 진행 중인 회차 id
+  dirty: {},           // 시트로 보낼 회차 id → 변경 번호
+  absQ: {}             // 시트로 보낼 미참여 변경 이름 → true/false
+};
+try { const s = JSON.parse(localStorage.getItem(LS)); if (s && s.roster) data = Object.assign(data, s); } catch (e) {}
+function save() { try { localStorage.setItem(LS, JSON.stringify(data)); } catch (e) {} }
+
+const hashApi = (location.hash.match(/api=([^&]+)/) || [])[1];
+if (hashApi) { const u = decodeURIComponent(hashApi); if (u !== data.api) { data.api = u; save(); } }
+
+/* ===== 도우미 ===== */
+const $ = id => document.getElementById(id);
+const pad = n => String(n).padStart(2, "0");
+const hm = ms => { const d = new Date(ms); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+const md = ms => { const d = new Date(ms); return `${d.getMonth() + 1}/${pad(d.getDate())}`; };
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const curRound = () => data.rounds.find(r => r.id === data.cur) || null;
+function toast(m) {
+  let el = document.querySelector(".toast");
+  if (!el) { el = document.createElement("div"); el.className = "toast"; document.body.appendChild(el); }
+  el.textContent = m; el.classList.add("show");
+  clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove("show"), 2600);
+}
+
+/* 한 회차를 학생별 줄로 정리 (화면·카톡·시트 모두 이걸 씀) */
+function roundItems(r) {
+  const order = Object.entries(r.ok).sort((a, b) => a[1] - b[1]).map(e => e[0]);
+  return data.roster.map(p => {
+    if (r.absent[p.name]) return { no: p.no, name: p.name, status: "미참여" };
+    const t = r.ok[p.name];
+    if (!t) return { no: p.no, name: p.name, status: "미확인" };
+    const mins = Math.max(0, Math.floor((t - r.start) / 60000));
+    return { no: p.no, name: p.name, status: "확인", time: hm(t), mins, order: order.indexOf(p.name) + 1, late: mins >= data.lateMin };
+  });
+}
+function summary(r) {
+  const it = roundItems(r);
+  const no = it.filter(x => x.status === "미참여"), miss = it.filter(x => x.status === "미확인");
+  const ok = it.filter(x => x.status === "확인"), late = ok.filter(x => x.late);
+  return { it, no, miss, ok, late, total: it.length - no.length };
+}
+
+/* ===== 탭 ===== */
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("nav button").forEach(x => x.classList.toggle("on", x === b));
+  document.querySelectorAll("section").forEach(s => s.classList.toggle("on", s.id === "tab-" + b.dataset.tab));
+  renderAll();
+  window.scrollTo(0, 0);
+});
+
+/* ===== 체크 화면 ===== */
+$("chips").innerHTML = PLACE_CHIPS.map(c => `<button data-c="${c}">${c}</button>`).join("");
+$("chips").onclick = e => { const c = e.target.dataset.c; if (c) { $("placeInput").value = c; } };
+$("startBtn").onclick = () => {
+  const place = $("placeInput").value.trim();
+  if (!place) { toast("장소를 입력해 주세요"); $("placeInput").focus(); return; }
+  const r = {
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    seq: data.rounds.length + 1, place, start: Date.now(), ok: {}, absent: Object.assign({}, data.absent)
+  };
+  data.rounds.push(r); data.cur = r.id; $("placeInput").value = "";
+  markDirty(r); save(); renderAll();
+};
+$("placeInput").onkeydown = e => { if (e.key === "Enter") $("startBtn").click(); };
+$("renameBtn").onclick = () => {
+  const r = curRound(); if (!r) return;
+  const p = prompt("장소 이름", r.place);
+  if (p && p.trim()) { r.place = p.trim(); markDirty(r); save(); renderAll(); }
+};
+$("newBtn").onclick = () => {
+  const r = curRound();
+  const s = r ? summary(r) : null;
+  const msg = s && s.miss.length
+    ? `아직 미확인 학생이 ${s.miss.length}명 있어요.\n이번 체크를 마감하고 새 인원체크를 시작할까요?\n(미확인으로 기록돼요)`
+    : "이번 체크를 마감하고 새 인원체크를 시작할까요?";
+  if (!confirm(msg)) return;
+  data.cur = null; save(); renderAll();
+  $("placeInput").focus();
+};
+$("shareBtn").onclick = () => { const r = curRound(); if (r) shareText(roundText(r)); };
+
+function buildGrid() {
+  $("grid").innerHTML = "";
+  data.roster.forEach(p => {
+    const el = document.createElement("div");
+    el.className = "st"; el.dataset.name = p.name;
+    el.innerHTML = `<span class="num">${esc(p.no)}</span><div class="name">${esc(p.name)}</div><div class="state"></div><button class="skip"></button>`;
+    el.querySelector(".name").onclick = () => tapName(p.name);
+    el.querySelector(".skip").onclick = () => toggleAbsent(p.name);
+    $("grid").appendChild(el);
+  });
+}
+function tapName(name) {
+  const r = curRound();
+  if (!r) { toast("먼저 장소를 입력하고 시작을 눌러 주세요"); $("placeInput").focus(); return; }
+  if (r.absent[name]) return;
+  if (r.ok[name]) delete r.ok[name]; else r.ok[name] = Date.now();
+  markDirty(r); save(); renderCheck();
+}
+function toggleAbsent(name) {
+  const now = !data.absent[name];
+  if (!confirm(now ? `${name} 학생을 미참여로 지정할까요?` : `${name} 학생을 다시 참가로 바꿀까요?`)) return;
+  if (now) data.absent[name] = true; else delete data.absent[name];
+  const r = curRound();
+  if (r) { if (now) { r.absent[name] = true; delete r.ok[name]; } else delete r.absent[name]; markDirty(r); }
+  data.absQ[name] = now; save(); renderCheck(); scheduleSync();
+}
+function renderCheck() {
+  const r = curRound();
+  $("startBox").style.display = r ? "none" : "";
+  $("runBox").style.display = r ? "" : "none";
+  $("grid").classList.toggle("idle", !r);
+  $("startHint").textContent = data.rounds.length
+    ? `${data.rounds.length + 1}번째 인원체크를 시작해요. 미참여 학생은 그대로 유지돼요.`
+    : "장소를 적고 시작을 누르면 시작 시각부터 확인 시간이 기록돼요.";
+  const absent = r ? r.absent : data.absent;
+  if (r) $("where").innerHTML = `📍 ${esc(r.place)} <small>· ${r.seq}번째 · ${hm(r.start)} 시작</small>`;
+  let ok = 0, no = 0; const miss = [];
+  $("grid").querySelectorAll(".st").forEach(el => {
+    const name = el.dataset.name, isNo = !!absent[name], t = r && !isNo ? r.ok[name] : 0;
+    const mins = t ? Math.max(0, Math.floor((t - r.start) / 60000)) : 0;
+    el.classList.toggle("no", isNo); el.classList.toggle("ok", !!t); el.classList.toggle("late", !!t && mins >= data.lateMin);
+    el.querySelector(".state").textContent = isNo ? "미참여" : t ? `${hm(t)} · +${mins}분${mins >= data.lateMin ? " 지각" : ""}` : (r ? "미확인" : "");
+    el.querySelector(".skip").textContent = isNo ? "참가로 변경" : "미참여";
+    if (isNo) no++; else if (t) ok++; else miss.push(name);
+  });
+  const total = data.roster.length - no;
+  $("sTotal").textContent = total; $("sOk").textContent = ok; $("sWait").textContent = total - ok; $("sNo").textContent = no;
+  $("bar").style.width = total ? (ok / total * 100) + "%" : "0";
+  $("done").classList.toggle("show", !!r && total > 0 && ok === total);
+  $("missing").textContent = miss.join(", ");
+  $("missingBox").style.display = r && miss.length ? "" : "none";
+}
+
+/* ===== 기록 화면 ===== */
+function renderLog() {
+  const list = data.rounds.slice().reverse();
+  if (!list.length) { $("logList").innerHTML = `<div class="empty">아직 인원체크 기록이 없어요</div>`; return; }
+  $("logList").innerHTML = list.map(r => {
+    const s = summary(r), live = r.id === data.cur;
+    const rows = s.it.filter(x => x.status !== "미참여")
+      .sort((a, b) => (a.order || 999) - (b.order || 999))
+      .map(x => `<tr><td>${x.order || "-"}</td><td class="l">${esc(x.name)}</td><td>${x.time || "-"}</td>
+        <td class="${x.status === "미확인" ? "tag-miss" : x.late ? "tag-late" : ""}">${x.status === "미확인" ? "미확인" : "+" + x.mins + "분"}</td></tr>`).join("");
+    return `<div class="box rcard">
+      <h3>${r.seq}번째 · ${esc(r.place)} ${live ? '<span class="tag-ok">· 진행 중</span>' : ""}</h3>
+      <div class="meta">${md(r.start)} ${hm(r.start)} 시작 · 참가 ${s.total}명 중 ${s.ok.length}명 확인</div>
+      ${s.miss.length ? `<div class="line"><span class="tag-miss">미확인 ${s.miss.length}명</span> ${esc(s.miss.map(x => x.name).join(", "))}</div>` : `<div class="line tag-ok">전원 확인</div>`}
+      ${s.late.length ? `<div class="line"><span class="tag-late">지각 ${s.late.length}명</span> ${esc(s.late.map(x => `${x.name}(+${x.mins}분)`).join(", "))}</div>` : ""}
+      ${s.no.length ? `<div class="line muted">미참여 ${esc(s.no.map(x => x.name).join(", "))}</div>` : ""}
+      <details><summary>확인 순서·시각 보기</summary><table><tr><th>순서</th><th>이름</th><th>시각</th><th>소요</th></tr>${rows}</table></details>
+    </div>`;
+  }).join("");
+}
+
+/* ===== 통계 화면 ===== */
+function calcStats() {
+  const map = {};
+  data.roster.forEach(p => map[p.name] = { no: p.no, name: p.name, rounds: 0, miss: 0, late: 0, sum: 0, cnt: 0 });
+  data.rounds.forEach(r => roundItems(r).forEach(x => {
+    const s = map[x.name]; if (!s || x.status === "미참여") return;
+    s.rounds++;
+    if (x.status === "미확인") s.miss++;
+    else { s.sum += x.mins; s.cnt++; if (x.late) s.late++; }
+  }));
+  return Object.values(map).filter(s => s.rounds).sort((a, b) =>
+    (b.miss + b.late) - (a.miss + a.late) || b.miss - a.miss || (b.cnt ? b.sum / b.cnt : 0) - (a.cnt ? a.sum / a.cnt : 0) || a.no - b.no);
+}
+function renderStat() {
+  $("statHint").innerHTML = `지금까지 ${data.rounds.length}번 인원체크했어요. <b>지각</b>은 시작 후 ${data.lateMin}분 이상 지나서 확인된 경우예요.`
+    + (data.api ? " 구글시트 <b>학생별 통계</b> 탭에도 자동 정리돼요." : "");
+  const list = calcStats();
+  if (!list.length) { $("statTable").innerHTML = `<tr><td class="empty">아직 기록이 없어요</td></tr>`; return; }
+  $("statTable").innerHTML = `<tr><th>이름</th><th>체크</th><th>미확인</th><th>지각</th><th>평균 소요</th></tr>` +
+    list.map(s => {
+      const bad = s.miss + s.late;
+      return `<tr class="${bad >= 3 ? "bad" : bad ? "warn" : ""}"><td class="l">${esc(s.name)}</td><td>${s.rounds}</td>
+        <td class="${s.miss ? "tag-miss" : ""}">${s.miss}</td><td class="${s.late ? "tag-late" : ""}">${s.late}</td>
+        <td>${s.cnt ? (Math.round(s.sum / s.cnt * 10) / 10) + "분" : "-"}</td></tr>`;
+    }).join("");
+}
+
+/* ===== 카톡 공유 ===== */
+function roundText(r) {
+  const s = summary(r), now = Date.now();
+  let t = `[${data.title || DEFAULT_TITLE}] ${r.seq}번째 · ${r.place}\n${md(r.start)} ${hm(r.start)} 시작 (보낸 시각 ${hm(now)})\n`;
+  t += `참가 ${s.total}명 중 확인 ${s.ok.length}명\n\n`;
+  t += s.miss.length ? `❗미확인 (${s.miss.length}명)\n${s.miss.map(x => x.name).join(", ")}` : "✅ 전원 확인 완료";
+  if (s.late.length) t += `\n\n⏰ 지각 (${s.late.length}명)\n${s.late.map(x => `${x.name} +${x.mins}분`).join(", ")}`;
+  if (s.no.length) t += `\n\n미참여 (${s.no.length}명)\n${s.no.map(x => x.name).join(", ")}`;
+  return t;
+}
+function allText() {
+  if (!data.rounds.length) return "";
+  let t = `[${data.title || DEFAULT_TITLE}] 전체 기록 (${data.rounds.length}회)\n`;
+  data.rounds.forEach(r => {
+    const s = summary(r);
+    t += `\n■ ${r.seq}번째 · ${r.place} (${md(r.start)} ${hm(r.start)})\n확인 ${s.ok.length}/${s.total}`;
+    if (s.miss.length) t += ` · 미확인: ${s.miss.map(x => x.name).join(", ")}`;
+    if (s.late.length) t += ` · 지각: ${s.late.map(x => `${x.name}+${x.mins}분`).join(", ")}`;
+    t += "\n";
+  });
+  return t;
+}
+function statText() {
+  const list = calcStats().filter(s => s.miss + s.late);
+  let t = `[${data.title || DEFAULT_TITLE}] 지도 필요 학생 (인원체크 ${data.rounds.length}회 기준, 지각 ${data.lateMin}분 이상)\n`;
+  t += list.length ? list.map(s => `- ${s.name}: 미확인 ${s.miss}회, 지각 ${s.late}회`).join("\n") : "해당 학생 없음 👍";
+  return t;
+}
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); return true; } catch (e) {}
+  const ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta);
+  ta.select(); let ok = false; try { ok = document.execCommand("copy"); } catch (e) {}
+  ta.remove(); return ok;
+}
+async function shareText(text) {
+  if (!text) { toast("보낼 기록이 없어요"); return; }
+  if (navigator.share) {
+    try { await navigator.share({ text }); return; } catch (e) { if (e.name === "AbortError") return; }
+  }
+  if (await copyText(text)) toast("복사했어요. 카톡 채팅방에 붙여넣기 하세요");
+  else prompt("아래 내용을 복사해서 카톡에 붙여넣으세요", text);
+}
+$("shareAllBtn").onclick = () => shareText(allText());
+$("shareStatBtn").onclick = () => shareText(statText());
+
+/* ===== 구글시트 동기화 ===== */
+let syncing = false, syncTimer = null, lastErr = "";
+function markDirty(r) { data.dirty[r.id] = (data.dirty[r.id] || 0) + 1; scheduleSync(); }
+function scheduleSync() { clearTimeout(syncTimer); syncTimer = setTimeout(sync, 1200); renderSync(); }
+function pending() { return Object.keys(data.dirty).length + Object.keys(data.absQ).length; }
+async function post(body) {
+  const res = await fetch(data.api, { method: "POST", body: JSON.stringify(body) });
+  const j = await res.json();
+  if (!j.ok) throw new Error(j.error || "시트 저장 실패");
+}
+function roundPayload(r) {
+  return { id: r.id, seq: r.seq, place: r.place, date: md(r.start), start: hm(r.start),
+    items: roundItems(r).map(x => ({ no: x.no, name: x.name, status: x.status, time: x.time || "", mins: x.status === "확인" ? x.mins : null, order: x.order || "" })) };
+}
+async function sync() {
+  if (!data.api || syncing || !pending()) { renderSync(); return; }
+  syncing = true; renderSync();
+  try {
+    for (const name of Object.keys(data.absQ)) {
+      const v = data.absQ[name];
+      await post({ action: "absent", name, absent: v });
+      if (data.absQ[name] === v) delete data.absQ[name];
+      save();
+    }
+    for (const id of Object.keys(data.dirty)) {
+      const ver = data.dirty[id], r = data.rounds.find(x => x.id === id);
+      if (r) await post({ action: "round", round: roundPayload(r) });
+      if (data.dirty[id] === ver) delete data.dirty[id];
+      save();
+    }
+    lastErr = "";
+  } catch (e) { lastErr = e.message || "연결 안 됨"; }
+  syncing = false; renderSync();
+  if (pending() && !lastErr) scheduleSync();
+}
+setInterval(() => { if (pending()) sync(); }, 20000);
+addEventListener("online", sync);
+function renderSync() {
+  const el = $("sync"), n = pending();
+  el.className = "sync";
+  if (!data.api) { el.textContent = "시트 미연결"; return; }
+  if (syncing) { el.textContent = "☁ 저장 중…"; el.classList.add("wait"); return; }
+  if (n && lastErr) { el.textContent = `⚠ 저장 대기 ${n}`; el.classList.add("err"); return; }
+  if (n) { el.textContent = `⏳ 저장 대기 ${n}`; el.classList.add("wait"); return; }
+  el.textContent = "☁ 시트 저장됨"; el.classList.add("ok");
+}
+
+async function loadConfig(manual) {
+  if (!data.api) { if (manual) toast("먼저 시트 주소를 넣어 주세요"); return; }
+  $("apiStatus").textContent = "시트에서 불러오는 중…";
+  try {
+    const res = await fetch(data.api + (data.api.includes("?") ? "&" : "?") + "t=" + Date.now());
+    const cfg = await res.json();
+    if (!cfg.ok || !Array.isArray(cfg.roster)) throw new Error("시트 응답이 올바르지 않아요");
+    if (cfg.roster.length) {
+      data.roster = cfg.roster.map(p => ({ no: p.no, name: p.name }));
+      data.rosterFrom = "sheet";
+      const absent = {};
+      cfg.roster.forEach(p => { if (p.name in data.absQ ? data.absQ[p.name] : p.absent) absent[p.name] = true; });
+      data.absent = absent;
+      const r = curRound();
+      if (r) {
+        data.roster.forEach(p => {
+          if (absent[p.name] && !r.absent[p.name]) { r.absent[p.name] = true; delete r.ok[p.name]; markDirty(r); }
+          if (!absent[p.name] && r.absent[p.name]) { delete r.absent[p.name]; markDirty(r); }
+        });
+      }
+    }
+    if (cfg.title) data.title = cfg.title;
+    if (typeof cfg.lateMin === "number") data.lateMin = cfg.lateMin;
+    save(); buildGrid(); renderAll();
+    $("apiStatus").textContent = `✅ 연결됨 · 명단 ${data.roster.length}명 불러옴 (${hm(Date.now())})`;
+    if (manual) toast("시트에서 명단을 불러왔어요");
+    sync();
+  } catch (e) {
+    $("apiStatus").textContent = "⚠ 시트에 연결하지 못했어요: " + (e.message || e) + " (이 기기에 저장된 명단으로 계속 쓸 수 있어요)";
+    if (manual) toast("시트 연결 실패");
+  }
+}
+
+/* ===== 설정 화면 ===== */
+$("apiSave").onclick = () => {
+  const u = $("apiInput").value.trim();
+  if (u && !/^https:\/\/script\.google(usercontent)?\.com\//.test(u)) { toast("Apps Script 주소(https://script.google.com/…)를 넣어 주세요"); return; }
+  data.api = u; save(); renderAll();
+  if (u) loadConfig(true); else toast("시트 연결을 해제했어요");
+};
+$("apiReload").onclick = () => loadConfig(true);
+$("copyLink").onclick = async () => {
+  const link = location.href.split("#")[0] + (data.api ? "#api=" + encodeURIComponent(data.api) : "");
+  if (await copyText(link)) toast("링크를 복사했어요"); else prompt("링크", link);
+};
+$("wipeBtn").onclick = () => {
+  if (!confirm("이 휴대폰에 저장된 인원체크 기록을 모두 지울까요?\n(구글시트 기록은 남아 있어요)")) return;
+  if (pending() && !confirm(`아직 시트에 저장 안 된 내용이 ${pending()}건 있어요. 그래도 지울까요?`)) return;
+  data.rounds = []; data.cur = null; data.dirty = {}; save(); renderAll(); toast("이 기기 기록을 지웠어요");
+};
+function renderSet() {
+  $("apiInput").value = data.api;
+  if (!data.api) $("apiStatus").textContent = "연결 안 됨 · 기록은 이 휴대폰에만 저장돼요";
+  $("rosterInfo").textContent = `${data.roster.length}명 (${data.rosterFrom === "sheet" ? "구글시트 명단" : "기본 명단 2-8"}) · 지각 기준 ${data.lateMin}분`
+    + (data.api ? " · 시트의 명단·설정 탭을 바꾼 뒤 '명단 다시 불러오기'를 누르면 바로 반영돼요" : "");
+}
+
+function renderAll() {
+  const t = data.title || DEFAULT_TITLE;
+  $("title").textContent = "🚌 " + t; document.title = t;
+  renderCheck(); renderLog(); renderStat(); renderSet(); renderSync();
+}
+
+buildGrid(); renderAll();
+loadConfig(false);
+</script>
+</body>
+</html>
