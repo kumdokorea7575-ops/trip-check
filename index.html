@@ -135,7 +135,7 @@
       <h2>📍 어디에서 인원체크를 하나요?</h2>
       <div class="muted" id="startHint">장소를 적고 시작을 누르면 시작 시각부터 확인 시간이 기록돼요.</div>
       <div class="startrow">
-        <input type="text" id="placeInput" placeholder="예: 학교 출발, 휴게소, 숙소" maxlength="30">
+        <input type="text" id="placeInput" placeholder="이동 장소 입력 (예: 성산일출봉)" maxlength="30">
         <button class="primary" id="startBtn">시작</button>
       </div>
       <div class="chips" id="chips"></div>
@@ -207,7 +207,6 @@ const DEFAULT_TITLE = "2-8 수학여행 인원체크";
 const DEFAULT_NAMES = ["강우진","권민지","김나윤","김민영","김민지","김예지","김지성","김찬우","김하율","김형서",
   "김휘윤","남소율","박소정","박은준","박지원","박채연","신주영","오승준","윤현규","이다빈",
   "이다은","이서진","이지민","임소윤","임태리","조예성","츠세준","한경석","한로아","홍은서"];
-const PLACE_CHIPS = ["학교 출발","버스 탑승","휴게소","관광지","식당","숙소","점호","귀가"];
 const LS = "tripcheck_v1";
 
 /* ===== 저장 ===== */
@@ -267,7 +266,11 @@ document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
 });
 
 /* ===== 체크 화면 ===== */
-$("chips").innerHTML = PLACE_CHIPS.map(c => `<button data-c="${c}">${c}</button>`).join("");
+function renderChips() {
+  const seen = [];
+  data.rounds.slice().reverse().forEach(r => { if (r.place && !seen.includes(r.place)) seen.push(r.place); });
+  $("chips").innerHTML = seen.length ? `<span class="muted" style="align-self:center">최근 장소:</span>` + seen.slice(0, 8).map(c => `<button data-c="${esc(c)}">${esc(c)}</button>`).join("") : "";
+}
 $("chips").onclick = e => { const c = e.target.dataset.c; if (c) { $("placeInput").value = c; } };
 $("startBtn").onclick = () => {
   const place = $("placeInput").value.trim();
@@ -553,7 +556,7 @@ function renderSet() {
 function renderAll() {
   const t = data.title || DEFAULT_TITLE;
   $("title").textContent = "🚌 " + t; document.title = t;
-  renderCheck(); renderLog(); renderStat(); renderSet(); renderSync();
+  renderCheck(); renderChips(); renderLog(); renderStat(); renderSet(); renderSync();
 }
 
 buildGrid(); renderAll();
