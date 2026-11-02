@@ -76,6 +76,8 @@
   .st.no .state{color:var(--no)}
   .st.no .skip{color:#fff;background:var(--no);border-color:var(--no)}
   .grid.idle .st:not(.no) .name{color:var(--muted)}
+  .st.extra .num{color:var(--accent);font-weight:700}
+  #extraList button{color:var(--accent)}
   .missing{margin-top:16px}
   .missing h3{margin:0 0 6px;font-size:15px;color:var(--wait)}
   .missing p{margin:0;font-size:15px;line-height:1.6}
@@ -155,6 +157,16 @@
 
     <div class="grid" id="grid"></div>
     <div class="box missing" id="missingBox"><h3>아직 확인 안 된 학생</h3><p id="missing"></p></div>
+    <div class="box" id="addBox">
+      <h3 style="margin:0 0 4px;font-size:15px">➕ 학생 추가</h3>
+      <div class="muted">다른 반 학생도 넣을 수 있어요. 반을 적으면 이름 옆에 같이 표시돼요.</div>
+      <div class="startrow">
+        <input type="text" id="addName" placeholder="이름" maxlength="20">
+        <input type="text" id="addCls" placeholder="반 (예: 2-3)" maxlength="10" style="max-width:120px">
+        <button class="primary" id="addBtn">추가</button>
+      </div>
+      <div class="chips" id="extraList"></div>
+    </div>
   </section>
 
   <!-- 기록 -->
@@ -217,7 +229,8 @@ let data = {
   rounds: [],          // 인원체크 기록
   cur: null,           // 진행 중인 회차 id
   dirty: {},           // 시트로 보낼 회차 id → 변경 번호
-  absQ: {}             // 시트로 보낼 미참여 변경 이름 → true/false
+  absQ: {},            // 시트로 보낼 미참여 변경 이름 → true/false
+  extra: []            // 직접 추가한 학생 [{name, cls}]
 };
 try { const s = JSON.parse(localStorage.getItem(LS)); if (s && s.roster) data = Object.assign(data, s); } catch (e) {}
 function save() { try { localStorage.setItem(LS, JSON.stringify(data)); } catch (e) {} }
@@ -239,10 +252,19 @@ function toast(m) {
   clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove("show"), 2600);
 }
 
+/* 지금 명단 = 기본(또는 시트) 명단 + 직접 추가한 학생 */
+const extraKey = e => e.cls ? `${e.name}(${e.cls})` : e.name;
+function people() {
+  return data.roster.map(p => ({ no: p.no, name: p.name }))
+    .concat((data.extra || []).map(e => ({ no: e.cls || "추가", name: extraKey(e), extra: true })));
+}
+/* 진행 중인 회차의 명단을 지금 명단으로 맞춤 (지난 회차는 그때 명단 그대로 남음) */
+function refreshCurPeople() { const r = curRound(); if (r) { r.people = people(); markDirty(r); } }
+
 /* 한 회차를 학생별 줄로 정리 (화면·카톡·시트 모두 이걸 씀) */
 function roundItems(r) {
   const order = Object.entries(r.ok).sort((a, b) => a[1] - b[1]).map(e => e[0]);
-  return data.roster.map(p => {
+  return (r.people || people()).map(p => {
     if (r.absent[p.name]) return { no: p.no, name: p.name, status: "미참여" };
     const t = r.ok[p.name];
     if (!t) return { no: p.no, name: p.name, status: "미확인" };
@@ -277,7 +299,8 @@ $("startBtn").onclick = () => {
   if (!place) { toast("장소를 입력해 주세요"); $("placeInput").focus(); return; }
   const r = {
     id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-    seq: data.rounds.length + 1, place, start: Date.now(), ok: {}, absent: Object.assign({}, data.absent)
+    seq: data.rounds.length + 1, place, start: Date.now(), ok: {}, absent: Object.assign({}, data.absent),
+    people: people()
   };
   data.rounds.push(r); data.cur = r.id; $("placeInput").value = "";
   markDirty(r); save(); renderAll();
@@ -302,9 +325,9 @@ $("shareBtn").onclick = () => { const r = curRound(); if (r) shareText(roundText
 
 function buildGrid() {
   $("grid").innerHTML = "";
-  data.roster.forEach(p => {
+  people().forEach(p => {
     const el = document.createElement("div");
-    el.className = "st"; el.dataset.name = p.name;
+    el.className = "st" + (p.extra ? " extra" : ""); el.dataset.name = p.name;
     el.innerHTML = `<span class="num">${esc(p.no)}</span><div class="name">${esc(p.name)}</div><div class="state"></div><button class="skip"></button>`;
     el.querySelector(".name").onclick = () => tapName(p.name);
     el.querySelector(".skip").onclick = () => toggleAbsent(p.name);
@@ -326,6 +349,35 @@ function toggleAbsent(name) {
   if (r) { if (now) { r.absent[name] = true; delete r.ok[name]; } else delete r.absent[name]; markDirty(r); }
   data.absQ[name] = now; save(); renderCheck(); scheduleSync();
 }
+
+/* 학생 추가·삭제 */
+$("addBtn").onclick = () => {
+  const name = $("addName").value.trim(), cls = $("addCls").value.trim();
+  if (!name) { toast("이름을 입력해 주세요"); $("addName").focus(); return; }
+  const key = extraKey({ name, cls });
+  if (people().some(p => p.name === key)) {
+    toast(cls ? "이미 있는 학생이에요" : "같은 이름이 있어요. 반을 같이 적어 주세요"); return;
+  }
+  data.extra = (data.extra || []).concat({ name, cls });
+  refreshCurPeople(); save();
+  $("addName").value = ""; $("addCls").value = "";
+  buildGrid(); renderAll(); toast(`${key} 학생을 추가했어요`);
+};
+$("addName").onkeydown = $("addCls").onkeydown = e => { if (e.key === "Enter") $("addBtn").click(); };
+$("extraList").onclick = e => {
+  const i = e.target.dataset.i; if (i === undefined) return;
+  const ex = data.extra[i], key = extraKey(ex);
+  if (!confirm(`${key} 학생을 명단에서 뺄까요?\n(지난 인원체크 기록은 그대로 남아요)`)) return;
+  data.extra.splice(i, 1); delete data.absent[key];
+  const r = curRound(); if (r) { delete r.ok[key]; delete r.absent[key]; }
+  refreshCurPeople(); save(); buildGrid(); renderAll();
+};
+function renderExtra() {
+  const ex = data.extra || [];
+  $("extraList").innerHTML = ex.length
+    ? `<span class="muted" style="align-self:center">추가한 학생 (누르면 빼기):</span>` + ex.map((e, i) => `<button data-i="${i}">${esc(extraKey(e))} ✕</button>`).join("")
+    : "";
+}
 function renderCheck() {
   const r = curRound();
   $("startBox").style.display = r ? "none" : "";
@@ -345,7 +397,7 @@ function renderCheck() {
     el.querySelector(".skip").textContent = isNo ? "참가로 변경" : "미참여";
     if (isNo) no++; else if (t) ok++; else miss.push(name);
   });
-  const total = data.roster.length - no;
+  const total = people().length - no;
   $("sTotal").textContent = total; $("sOk").textContent = ok; $("sWait").textContent = total - ok; $("sNo").textContent = no;
   $("bar").style.width = total ? (ok / total * 100) + "%" : "0";
   $("done").classList.toggle("show", !!r && total > 0 && ok === total);
@@ -377,15 +429,17 @@ function renderLog() {
 /* ===== 통계 화면 ===== */
 function calcStats() {
   const map = {};
-  data.roster.forEach(p => map[p.name] = { no: p.no, name: p.name, rounds: 0, miss: 0, late: 0, sum: 0, cnt: 0 });
+  const blank = p => ({ no: p.no, name: p.name, rounds: 0, miss: 0, late: 0, sum: 0, cnt: 0 });
+  people().forEach(p => map[p.name] = blank(p));
   data.rounds.forEach(r => roundItems(r).forEach(x => {
-    const s = map[x.name]; if (!s || x.status === "미참여") return;
+    if (x.status === "미참여") return;
+    const s = map[x.name] || (map[x.name] = blank(x));  // 지금은 빠진 학생도 지난 기록은 통계에 남김
     s.rounds++;
     if (x.status === "미확인") s.miss++;
     else { s.sum += x.mins; s.cnt++; if (x.late) s.late++; }
   }));
   return Object.values(map).filter(s => s.rounds).sort((a, b) =>
-    (b.miss + b.late) - (a.miss + a.late) || b.miss - a.miss || (b.cnt ? b.sum / b.cnt : 0) - (a.cnt ? a.sum / a.cnt : 0) || a.no - b.no);
+    (b.miss + b.late) - (a.miss + a.late) || b.miss - a.miss || (b.cnt ? b.sum / b.cnt : 0) - (a.cnt ? a.sum / a.cnt : 0) || String(a.no).localeCompare(String(b.no), "ko", { numeric: true }));
 }
 function renderStat() {
   $("statHint").innerHTML = `지금까지 ${data.rounds.length}번 인원체크했어요. <b>지각</b>은 시작 후 ${data.lateMin}분 이상 지나서 확인된 경우예요.`
@@ -508,9 +562,11 @@ async function loadConfig(manual) {
       data.rosterFrom = "sheet";
       const absent = {};
       cfg.roster.forEach(p => { if (p.name in data.absQ ? data.absQ[p.name] : p.absent) absent[p.name] = true; });
+      (data.extra || []).forEach(e => { if (data.absent[extraKey(e)]) absent[extraKey(e)] = true; });
       data.absent = absent;
       const r = curRound();
       if (r) {
+        r.people = people(); markDirty(r);
         data.roster.forEach(p => {
           if (absent[p.name] && !r.absent[p.name]) { r.absent[p.name] = true; delete r.ok[p.name]; markDirty(r); }
           if (!absent[p.name] && r.absent[p.name]) { delete r.absent[p.name]; markDirty(r); }
@@ -549,14 +605,15 @@ $("wipeBtn").onclick = () => {
 function renderSet() {
   $("apiInput").value = data.api;
   if (!data.api) $("apiStatus").textContent = "연결 안 됨 · 기록은 이 휴대폰에만 저장돼요";
-  $("rosterInfo").textContent = `${data.roster.length}명 (${data.rosterFrom === "sheet" ? "구글시트 명단" : "기본 명단 2-8"}) · 지각 기준 ${data.lateMin}분`
+  $("rosterInfo").textContent = `${data.roster.length}명 (${data.rosterFrom === "sheet" ? "구글시트 명단" : "기본 명단 2-8"})`
+    + ((data.extra || []).length ? ` + 추가 학생 ${data.extra.length}명` : "") + ` · 지각 기준 ${data.lateMin}분`
     + (data.api ? " · 시트의 명단·설정 탭을 바꾼 뒤 '명단 다시 불러오기'를 누르면 바로 반영돼요" : "");
 }
 
 function renderAll() {
   const t = data.title || DEFAULT_TITLE;
   $("title").textContent = "🚌 " + t; document.title = t;
-  renderCheck(); renderChips(); renderLog(); renderStat(); renderSet(); renderSync();
+  renderCheck(); renderChips(); renderExtra(); renderLog(); renderStat(); renderSet(); renderSync();
 }
 
 buildGrid(); renderAll();
