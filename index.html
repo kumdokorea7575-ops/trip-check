@@ -434,10 +434,13 @@ async function copyText(text) {
 }
 async function shareText(text) {
   if (!text) { toast("보낼 기록이 없어요"); return; }
-  if (navigator.share) {
+  // 컴퓨터(윈도우) 공유창은 카톡에 글 대신 링크만 보내서, 휴대폰에서만 공유창을 써요
+  const isPhone = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  if (isPhone && navigator.share) {
     try { await navigator.share({ text }); return; } catch (e) { if (e.name === "AbortError") return; }
   }
-  if (await copyText(text)) toast("복사했어요. 카톡 채팅방에 붙여넣기 하세요");
+  if (await copyText(text)) toast("명단을 복사했어요. 카톡 대화창에 Ctrl+V로 붙여넣으세요");
   else prompt("아래 내용을 복사해서 카톡에 붙여넣으세요", text);
 }
 $("shareAllBtn").onclick = () => shareText(allText());
